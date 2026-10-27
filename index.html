@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Abonnemangskoll</title>
+<meta name="description" content="Samla alla prenumerationer, se total månadskostnad och vad som förnyas snart.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101118" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Abonnemang">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: one centered column — summary card up top, upcoming + full list below.
+     Palette: cool neutrals biased toward an indigo accent; semantic amber/red for alerts. */
+  :root{
+    --bg:#f3f4f7; --surface:#ffffff; --surface-2:#f7f8fb; --surface-3:#eef0f5;
+    --fg:#191b22; --muted:#5c6273; --faint:#8a90a0; --line:#e3e5ed;
+    --accent:#5a52e0; --accent-soft:#ecebfb; --accent-ink:#4039b8;
+    --warn:#b45309; --warn-soft:#fdf0dc; --urgent:#d6295a; --urgent-soft:#fde6ed;
+    --ok:#15803d;
+    --shadow:0 1px 2px rgba(20,22,40,.05),0 8px 24px rgba(20,22,40,.06);
+    --radius:18px; --radius-sm:12px;
+    --display:"Fraunces",Georgia,serif;
+    --ui:"Hanken Grotesk",system-ui,-apple-system,sans-serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#101118; --surface:#1a1c25; --surface-2:#1f222d; --surface-3:#262a36;
+    --fg:#edeef4; --muted:#a0a6b6; --faint:#767d90; --line:#2b2f3b;
+    --accent:#8f88f7; --accent-soft:#272544; --accent-ink:#b7b2fb;
+    --warn:#f0b254; --warn-soft:#3a2d15; --urgent:#ff6b94; --urgent-soft:#3c1b27;
+    --ok:#4ade80;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#101118; --surface:#1a1c25; --surface-2:#1f222d; --surface-3:#262a36;
+    --fg:#edeef4; --muted:#a0a6b6; --faint:#767d90; --line:#2b2f3b;
+    --accent:#8f88f7; --accent-soft:#272544; --accent-ink:#b7b2fb;
+    --warn:#f0b254; --warn-soft:#3a2d15; --urgent:#ff6b94; --urgent-soft:#3c1b27;
+    --ok:#4ade80;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+
+  html,body{margin:0}
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:var(--ui);line-height:1.5;
+    -webkit-font-smoothing:antialiased;font-size:15px;
+    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .wrap{max-width:720px;margin:0 auto;
+    padding-left:max(16px,env(safe-area-inset-left,0px));
+    padding-right:max(16px,env(safe-area-inset-right,0px));
+    padding-block:26px 72px}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  button{font-family:inherit;font-size:inherit;cursor:pointer}
+  .num{font-variant-numeric:tabular-nums}
+
+  header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:20px}
+  .brand h1{font-family:var(--display);font-weight:600;font-size:clamp(26px,6vw,34px);letter-spacing:-.01em;line-height:1.05}
+  .brand p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .head-actions{display:flex;gap:8px;flex:none}
+  .icon-btn{background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    height:38px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:0 11px;transition:.15s;font-weight:600;font-size:13px}
+  .icon-btn.square{width:38px;padding:0}
+  .icon-btn:hover{color:var(--fg);border-color:var(--faint)}
+  .icon-btn.install{color:var(--accent);border-color:var(--accent)}
+  .icon-btn svg{width:17px;height:17px}
+
+  .summary{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:22px;margin-bottom:18px}
+  .sum-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 26px}
+  .sum-main .label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .sum-main .big{font-family:var(--display);font-weight:600;font-size:clamp(40px,11vw,56px);
+    line-height:1;letter-spacing:-.02em;margin-top:6px}
+  .sum-main .big small{font-size:.42em;font-family:var(--ui);font-weight:600;color:var(--muted);letter-spacing:0}
+  .sum-side{display:flex;gap:26px;margin-left:auto;padding-bottom:4px}
+  .sum-side div .v{font-size:19px;font-weight:700}
+  .sum-side div .k{font-size:12px;color:var(--muted)}
+  .bar{display:flex;height:9px;border-radius:99px;overflow:hidden;margin-top:20px;background:var(--surface-3)}
+  .bar span{display:block;height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px}
+  .legend .lg{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+  .legend .dot{width:9px;height:9px;border-radius:3px;flex:none}
+
+  .sec{margin-top:26px}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;gap:10px}
+  .sec-head h2{font-family:var(--ui);font-size:13px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--faint);font-weight:700}
+  .add-btn{background:var(--accent);color:#fff;border:none;border-radius:11px;
+    padding:9px 15px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:7px;transition:.15s}
+  .add-btn:hover{filter:brightness(1.07)}
+  .add-btn svg{width:16px;height:16px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    box-shadow:var(--shadow)}
+  .upc{display:flex;flex-direction:column;gap:9px;background:none;border:none;box-shadow:none}
+  .upc .item{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+  .item{display:flex;align-items:center;gap:13px;padding:13px 15px}
+  .item .ic{width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;
+    font-weight:700;font-size:15px;color:#fff}
+  .item .mid{min-width:0;flex:1}
+  .item .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .sub{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .item .right{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+  .item .amt{font-weight:700}
+  .pill{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap;letter-spacing:.01em}
+  .pill.u{background:var(--urgent-soft);color:var(--urgent)}
+  .pill.w{background:var(--warn-soft);color:var(--warn)}
+  .pill.n{background:var(--surface-3);color:var(--muted)}
+  .pill.t{background:var(--urgent-soft);color:var(--urgent)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+  .chip .dot{width:8px;height:8px;border-radius:3px;flex:none}
+
+  .list .item{border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
+  .list .item:last-child{border-bottom:none}
+  .list .item:hover{background:var(--surface-2)}
+  .list .item:active{background:var(--surface-3)}
+  .gcal{color:var(--accent);text-decoration:none;font-weight:600;font-size:12px;display:inline-flex;align-items:center;gap:4px}
+  .gcal:hover{text-decoration:underline}
+  .gcal svg{width:13px;height:13px}
+
+  .empty{text-align:center;padding:30px 18px}
+  .empty h3{font-family:var(--display);font-weight:600;font-size:21px;margin-bottom:6px}
+  .empty p{color:var(--muted);max-width:40ch;margin:0 auto 18px}
+  .quick{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
+  .quick .q{background:var(--surface-2);border:1px solid var(--line);border-radius:99px;
+    padding:7px 13px;font-size:13px;font-weight:600;color:var(--fg);display:inline-flex;align-items:center;gap:7px;transition:.15s}
+  .quick .q:hover{border-color:var(--accent);color:var(--accent)}
+  .quick .q .dot{width:8px;height:8px;border-radius:3px}
+  .muted-note{color:var(--faint);font-size:12.5px;text-align:center;margin-top:22px;line-height:1.6;max-width:52ch;margin-inline:auto}
+
+  .overlay{position:fixed;inset:0;background:rgba(15,16,24,.5);backdrop-filter:blur(3px);
+    z-index:50;display:flex;align-items:flex-end;justify-content:center;padding:0}
+  @media(min-width:560px){.overlay{align-items:center;padding:20px}}
+  .sheet{background:var(--surface);width:100%;max-width:460px;border-radius:20px 20px 0 0;
+    box-shadow:0 -10px 40px rgba(0,0,0,.25);padding:20px;
+    padding-bottom:max(20px,env(safe-area-inset-bottom,0px));
+    max-height:92vh;overflow-y:auto}
+  @media(min-width:560px){.sheet{border-radius:20px}}
+  .sheet h2{font-family:var(--display);font-weight:600;font-size:22px;margin-bottom:16px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px}
+  .field input[type=text],.field input[type=number],.field input[type=date],.field select{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+    padding:11px 12px;font-size:16px;color:var(--fg);font-family:inherit}
+  .field input:focus,.field select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+  .row2{display:flex;gap:12px}.row2>*{flex:1}
+  .amtwrap{position:relative}
+  .amtwrap .cur{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:14px;pointer-events:none}
+  .amtwrap input{padding-right:34px}
+  .check{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:10px;padding:11px 12px;cursor:pointer}
+  .check input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+  .check .t{font-size:13.5px}.check .t b{display:block;font-weight:600}.check .t span{color:var(--muted);font-size:12px}
+  .actions{display:flex;gap:10px;margin-top:18px}
+  .btn{border-radius:11px;padding:12px;font-weight:600;font-size:15px;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--fg);flex:1;transition:.15s}
+  .btn:hover{border-color:var(--faint)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:transparent;flex:1.4}
+  .btn.primary:hover{filter:brightness(1.07)}
+  .btn.danger{background:none;color:var(--urgent);border-color:transparent;flex:none;padding:12px 10px}
+  .btn.danger.armed{background:var(--urgent-soft)}
+  .status{font-size:12px;color:var(--faint);text-align:center;margin-top:14px;min-height:1em}
+  [hidden]{display:none!important}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Abonnemangskoll</h1>
+      <p>Alla prenumerationer på ett ställe</p>
+    </div>
+    <div class="head-actions">
+      <button class="icon-btn install" id="installBtn" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        Installera
+      </button>
+      <button class="icon-btn square" id="themeBtn" title="Byt tema" aria-label="Byt tema">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="summary">
+    <div class="sum-top">
+      <div class="sum-main">
+        <div class="label">Totalt per månad</div>
+        <div class="big num" id="totMonth">–</div>
+      </div>
+      <div class="sum-side">
+        <div><div class="v num" id="totYear">–</div><div class="k">per år</div></div>
+        <div><div class="v num" id="totCount">0</div><div class="k">tjänster</div></div>
+      </div>
+    </div>
+    <div class="bar" id="bar" hidden></div>
+    <div class="legend" id="legend" hidden></div>
+  </section>
+
+  <section class="sec" id="upcSec" hidden>
+    <div class="sec-head"><h2>På gång</h2></div>
+    <div class="upc" id="upcList"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2 id="listTitle">Alla abonnemang</h2>
+      <button class="add-btn" id="addBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Lägg till
+      </button>
+    </div>
+    <div class="card list" id="list"></div>
+  </section>
+
+  <p class="muted-note" id="note"></p>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <form class="sheet" id="form">
+    <h2 id="formTitle">Nytt abonnemang</h2>
+    <div class="field">
+      <label for="f-name">Namn</label>
+      <input type="text" id="f-name" autocomplete="off" placeholder="t.ex. Netflix" required>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="f-amount">Kostnad</label>
+        <div class="amtwrap"><input type="number" id="f-amount" min="0" step="0.01" inputmode="decimal" placeholder="0" required><span class="cur">kr</span></div>
+      </div>
+      <div class="field">
+        <label for="f-cycle">Debiteras</label>
+        <select id="f-cycle">
+          <option value="month">per månad</option>
+          <option value="quarter">per kvartal</option>
+          <option value="year">per år</option>
+          <option value="week">per vecka</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="f-date" id="f-date-label">Nästa betalning</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label for="f-cat">Kategori</label>
+        <select id="f-cat"></select>
+      </div>
+    </div>
+    <div class="field">
+      <label class="check" for="f-trial">
+        <input type="checkbox" id="f-trial">
+        <span class="t"><b>Gratis provperiod</b><span>Påminn mig innan den övergår till betald</span></span>
+      </label>
+    </div>
+    <div class="field">
+      <label for="f-note">Anteckning (valfritt)</label>
+      <input type="text" id="f-note" autocomplete="off" placeholder="t.ex. delat konto med familjen">
+    </div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="delBtn" hidden>Ta bort</button>
+      <button type="button" class="btn" id="cancelBtn">Avbryt</button>
+      <button type="submit" class="btn primary" id="saveBtn">Spara</button>
+    </div>
+    <div class="status" id="formStatus"></div>
+  </form>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORE_KEY="abonnemangskoll.subs.v1";
+
+  const CYCLES={
+    month:{label:"per månad",short:"/mån",toMonth:x=>x},
+    quarter:{label:"per kvartal",short:"/kvartal",toMonth:x=>x/3},
+    year:{label:"per år",short:"/år",toMonth:x=>x/12},
+    week:{label:"per vecka",short:"/vecka",toMonth:x=>x*52/12},
+  };
+  const CATS={
+    streaming:{label:"Streaming",color:"#e11d79"},
+    musik:{label:"Musik",color:"#16a34a"},
+    molnlagring:{label:"Molnlagring",color:"#2563eb"},
+    bocker:{label:"Böcker & nyheter",color:"#d97706"},
+    traning:{label:"Träning & hälsa",color:"#0d9488"},
+    programvara:{label:"Programvara",color:"#7c3aed"},
+    spel:{label:"Spel",color:"#db2777"},
+    ovrigt:{label:"Övrigt",color:"#64748b"},
+  };
+  const PRESETS=[
+    {name:"Netflix",amount:139,cat:"streaming"},
+    {name:"Spotify",amount:139,cat:"musik"},
+    {name:"Max",amount:109,cat:"streaming"},
+    {name:"Disney+",amount:109,cat:"streaming"},
+    {name:"Viaplay",amount:169,cat:"streaming"},
+    {name:"YouTube Premium",amount:139,cat:"streaming"},
+    {name:"iCloud+",amount:29,cat:"molnlagring"},
+    {name:"Storytel",amount:199,cat:"bocker"},
+  ];
+
+  const kr=new Intl.NumberFormat("sv-SE",{style:"currency",currency:"SEK",maximumFractionDigits:0});
+  const kr2=new Intl.NumberFormat("sv-SE",{style:"currency",currency:"SEK",maximumFractionDigits:2});
+  const dfShort=new Intl.DateTimeFormat("sv-SE",{day:"numeric",month:"short"});
+
+  function today0(){const d=new Date();d.setHours(0,0,0,0);return d;}
+  function parseDate(s){if(!s)return null;const p=String(s).split("-");if(p.length!==3)return null;
+    const d=new Date(+p[0],+p[1]-1,+p[2]);d.setHours(0,0,0,0);return isNaN(d)?null:d;}
+  function toISO(d){const m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return d.getFullYear()+"-"+m+"-"+day;}
+  function addCycle(d,cyc){const n=new Date(d);
+    if(cyc==="week")n.setDate(n.getDate()+7);
+    else if(cyc==="quarter")n.setMonth(n.getMonth()+3);
+    else if(cyc==="year")n.setFullYear(n.getFullYear()+1);
+    else n.setMonth(n.getMonth()+1);
+    return n;}
+  function daysBetween(a,b){return Math.round((b-a)/86400000);}
+  function occurrence(sub){
+    const d=parseDate(sub.nextDate);if(!d)return null;
+    if(sub.isTrial)return d;
+    const t=today0();if(d>=t)return d;
+    let n=d,guard=0;while(n<t&&guard++<600)n=addCycle(n,sub.cycle||"month");return n;
+  }
+  function uid(){
+    try{if(crypto&&crypto.randomUUID)return crypto.randomUUID();}catch(e){}
+    return "s"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  }
+
+  // ---- persistence (local to this device)
+  let subs=[];
+  function load(){
+    try{const raw=localStorage.getItem(STORE_KEY);subs=raw?JSON.parse(raw):[];if(!Array.isArray(subs))subs=[];}
+    catch(e){subs=[];}
+  }
+  function save(){
+    try{localStorage.setItem(STORE_KEY,JSON.stringify(subs));}
+    catch(e){/* storage full or blocked — app still works for this session */}
+  }
+
+  let editing=null, delArmed=false;
+  const $=id=>document.getElementById(id);
+  const overlay=$("overlay"),form=$("form");
+
+  // theme
+  (function(){
+    try{const t=localStorage.getItem("ak-theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}
+    $("themeBtn").addEventListener("click",()=>{
+      const cur=document.documentElement.getAttribute("data-theme");
+      const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+      const next=dark?"light":"dark";
+      document.documentElement.setAttribute("data-theme",next);
+      try{localStorage.setItem("ak-theme",next);}catch(e){}
+    });
+  })();
+
+  (function(){
+    const sel=$("f-cat");
+    Object.keys(CATS).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CATS[k].label;sel.appendChild(o);});
+    sel.value="streaming";
+  })();
+
+  $("f-trial").addEventListener("change",e=>{
+    $("f-date-label").textContent=e.target.checked?"Provperiod slutar":"Nästa betalning";
+  });
+
+  function initials(name){const p=name.trim().split(/\s+/);return ((p[0]||"")[0]||"?").toUpperCase()+(p.length>1?(p[1][0]||"").toUpperCase():"");}
+  function catOf(sub){return CATS[sub.category]||CATS.ovrigt;}
+
+  function gcalUrl(sub,date){
+    const e1=toISO(date).replace(/-/g,"");
+    const nd=new Date(date);nd.setDate(nd.getDate()+1);
+    const e2=toISO(nd).replace(/-/g,"");
+    const title=sub.name+(sub.isTrial?" – provperiod slutar":" förnyas");
+    const amt=sub.isTrial?("Övergår till "+kr2.format(sub.amount)+" "+(CYCLES[sub.cycle]||CYCLES.month).label):(kr2.format(sub.amount)+" "+(CYCLES[sub.cycle]||CYCLES.month).label);
+    const u=new URL("https://calendar.google.com/calendar/render");
+    u.searchParams.set("action","TEMPLATE");
+    u.searchParams.set("text",title);
+    u.searchParams.set("dates",e1+"/"+e2);
+    u.searchParams.set("details",amt+" — Abonnemangskoll");
+    return u.toString();
+  }
+
+  function render(){
+    const t=today0();
+    const enriched=subs.map(s=>{
+      const occ=occurrence(s);
+      const monthly=(CYCLES[s.cycle]||CYCLES.month).toMonth(+s.amount||0);
+      const days=occ?daysBetween(t,occ):null;
+      return Object.assign({},s,{occ,monthly,days});
+    });
+
+    const totM=enriched.reduce((a,s)=>a+s.monthly,0);
+    $("totMonth").innerHTML=kr.format(totM).replace(/\s?kr$/,"")+' <small>kr/mån</small>';
+    $("totYear").textContent=kr.format(totM*12);
+    $("totCount").textContent=enriched.length;
+
+    const bar=$("bar"),legend=$("legend");
+    bar.innerHTML="";legend.innerHTML="";
+    if(totM>0){
+      const byCat={};
+      enriched.forEach(s=>{const k=s.category||"ovrigt";byCat[k]=(byCat[k]||0)+s.monthly;});
+      Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).forEach(k=>{
+        const seg=document.createElement("span");
+        seg.style.width=(byCat[k]/totM*100)+"%";
+        seg.style.background=(CATS[k]||CATS.ovrigt).color;
+        bar.appendChild(seg);
+        const lg=document.createElement("div");lg.className="lg";
+        const dot=document.createElement("span");dot.className="dot";dot.style.background=(CATS[k]||CATS.ovrigt).color;
+        lg.appendChild(dot);
+        lg.appendChild(document.createTextNode((CATS[k]||CATS.ovrigt).label+" · "+kr.format(byCat[k])));
+        legend.appendChild(lg);
+      });
+      bar.hidden=false;legend.hidden=false;
+    }else{bar.hidden=true;legend.hidden=true;}
+
+    const upc=enriched.filter(s=>s.days!==null&&s.days<=31).sort((a,b)=>a.days-b.days);
+    const upcSec=$("upcSec"),upcList=$("upcList");
+    upcList.innerHTML="";
+    if(upc.length){upc.forEach(s=>upcList.appendChild(rowEl(s,true)));upcSec.hidden=false;}
+    else upcSec.hidden=true;
+
+    const list=$("list");list.innerHTML="";
+    $("listTitle").textContent=enriched.length?"Alla abonnemang":"Kom igång";
+    if(!enriched.length){list.appendChild(emptyEl());}
+    else{
+      enriched.slice().sort((a,b)=>{
+        if(a.days===null)return 1;if(b.days===null)return -1;return a.days-b.days;
+      }).forEach(s=>list.appendChild(rowEl(s,false)));
+    }
+
+    $("note").textContent=enriched.length
+      ? "Dina abonnemang sparas lokalt på den här enheten. Appen skickar inte push-notiser, men ”På gång” visar vad som förnyas snart — tryck på en rad för att ändra, eller lägg händelsen i din kalender."
+      : "";
+  }
+
+  function statusPill(s){
+    const p=document.createElement("span");p.className="pill";
+    if(s.days===null){p.className="pill n";p.textContent="Inget datum";return p;}
+    if(s.isTrial){
+      p.className="pill t";
+      if(s.days<0)p.textContent="Prov slut – betalar nu";
+      else if(s.days===0)p.textContent="Prov slutar idag";
+      else p.textContent="Prov slutar om "+s.days+" d";
+      return p;
+    }
+    if(s.days===0){p.className="pill u";p.textContent="Förnyas idag";}
+    else if(s.days<=3){p.className="pill u";p.textContent="Om "+s.days+" d";}
+    else if(s.days<=7){p.className="pill w";p.textContent="Om "+s.days+" d";}
+    else{p.className="pill n";p.textContent="Om "+s.days+" d";}
+    return p;
+  }
+
+  function rowEl(s,isUpc){
+    const row=document.createElement("div");row.className="item";
+    const cat=catOf(s);
+    const ic=document.createElement("div");ic.className="ic";ic.style.background=cat.color;
+    ic.textContent=initials(s.name);row.appendChild(ic);
+
+    const mid=document.createElement("div");mid.className="mid";
+    const nm=document.createElement("div");nm.className="nm";nm.textContent=s.name;mid.appendChild(nm);
+    const sub=document.createElement("div");sub.className="sub";
+    const chip=document.createElement("span");chip.className="chip";
+    const dot=document.createElement("span");dot.className="dot";dot.style.background=cat.color;
+    chip.appendChild(dot);chip.appendChild(document.createTextNode(cat.label));
+    sub.appendChild(chip);
+    if(s.occ){
+      const dsep=document.createElement("span");dsep.textContent="·";dsep.style.opacity=".5";sub.appendChild(dsep);
+      const dt=document.createElement("span");dt.textContent=(s.isTrial?"slutar ":"")+dfShort.format(s.occ);sub.appendChild(dt);
+    }
+    mid.appendChild(sub);
+    if(isUpc&&s.occ){
+      const a=document.createElement("a");a.className="gcal";a.href=gcalUrl(s,s.occ);a.target="_blank";a.rel="noopener";
+      a.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>Lägg i kalender';
+      a.addEventListener("click",e=>e.stopPropagation());
+      mid.appendChild(a);
+    }
+    row.appendChild(mid);
+
+    const right=document.createElement("div");right.className="right";
+    const amt=document.createElement("div");amt.className="amt num";amt.textContent=kr2.format(+s.amount||0);right.appendChild(amt);
+    const cyc=document.createElement("div");cyc.style.fontSize="12px";cyc.style.color="var(--muted)";
+    cyc.textContent=(CYCLES[s.cycle]||CYCLES.month).short;right.appendChild(cyc);
+    right.appendChild(statusPill(s));
+    row.appendChild(right);
+
+    if(!isUpc)row.addEventListener("click",()=>openForm(s));
+    else row.style.cursor="default";
+    return row;
+  }
+
+  function emptyEl(){
+    const w=document.createElement("div");w.className="empty";
+    const h=document.createElement("h3");h.textContent="Lägg till ditt första abonnemang";
+    const p=document.createElement("p");p.textContent="Samla alla prenumerationer här så ser du vad de kostar tillsammans — och vad som förnyas härnäst.";
+    w.appendChild(h);w.appendChild(p);
+    const q=document.createElement("div");q.className="quick";
+    PRESETS.forEach(pr=>{
+      const b=document.createElement("button");b.className="q";b.type="button";
+      const dot=document.createElement("span");dot.className="dot";dot.style.background=CATS[pr.cat].color;
+      b.appendChild(dot);b.appendChild(document.createTextNode(pr.name));
+      b.addEventListener("click",()=>openForm("new",pr));
+      q.appendChild(b);
+    });
+    w.appendChild(q);
+    return w;
+  }
+
+  function openForm(sub,preset){
+    editing=sub;delArmed=false;
+    const isNew=sub==="new";
+    $("formTitle").textContent=isNew?"Nytt abonnemang":"Ändra abonnemang";
+    $("saveBtn").textContent=isNew?"Lägg till":"Spara";
+    const d=$("delBtn");d.hidden=isNew;d.classList.remove("armed");d.textContent="Ta bort";
+    $("formStatus").textContent="";
+
+    const src=isNew?(preset||{}):sub;
+    $("f-name").value=src.name||"";
+    $("f-amount").value=src.amount!=null?src.amount:"";
+    $("f-cycle").value=src.cycle||"month";
+    $("f-cat").value=src.category||(preset&&preset.cat)||"streaming";
+    $("f-trial").checked=!!src.isTrial;
+    $("f-date-label").textContent=src.isTrial?"Provperiod slutar":"Nästa betalning";
+    $("f-note").value=src.notes||"";
+    $("f-date").value=src.nextDate||"";
+    if(isNew&&!src.nextDate){const n=new Date();n.setMonth(n.getMonth()+1);$("f-date").value=toISO(n);}
+
+    overlay.hidden=false;
+    setTimeout(()=>$("f-name").focus(),30);
+  }
+  function closeForm(){overlay.hidden=true;editing=null;}
+
+  $("addBtn").addEventListener("click",()=>openForm("new"));
+  $("cancelBtn").addEventListener("click",closeForm);
+  overlay.addEventListener("mousedown",e=>{if(e.target===overlay)closeForm();});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
+
+  form.addEventListener("submit",e=>{
+    e.preventDefault();
+    const name=$("f-name").value.trim();
+    const amount=parseFloat($("f-amount").value);
+    if(!name){$("f-name").focus();return;}
+    if(isNaN(amount)||amount<0){$("f-amount").focus();return;}
+    const data={
+      name,amount,
+      cycle:$("f-cycle").value,
+      category:$("f-cat").value,
+      isTrial:$("f-trial").checked,
+      nextDate:$("f-date").value||"",
+      notes:$("f-note").value.trim(),
+    };
+    if(editing==="new"){data.id=uid();data.createdAt=Date.now();subs.push(data);}
+    else{const i=subs.findIndex(x=>x.id===editing.id);if(i>=0)subs[i]=Object.assign({},editing,data);}
+    save();render();closeForm();
+  });
+
+  $("delBtn").addEventListener("click",()=>{
+    if(!delArmed){delArmed=true;const d=$("delBtn");d.classList.add("armed");d.textContent="Bekräfta borttagning";return;}
+    if(editing==="new"||!editing)return;
+    subs=subs.filter(x=>x.id!==editing.id);
+    save();render();closeForm();
+  });
+
+  // ---- install prompt
+  let deferredPrompt=null;
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault();deferredPrompt=e;$("installBtn").hidden=false;
+  });
+  $("installBtn").addEventListener("click",async()=>{
+    if(!deferredPrompt)return;
+    deferredPrompt.prompt();
+    try{await deferredPrompt.userChoice;}catch(e){}
+    deferredPrompt=null;$("installBtn").hidden=true;
+  });
+  window.addEventListener("appinstalled",()=>{$("installBtn").hidden=true;});
+
+  // ---- boot
+  load();
+  render();
+
+  // ---- service worker (offline)
+  if("serviceWorker" in navigator){
+    window.addEventListener("load",()=>{
+      navigator.serviceWorker.register("sw.js").catch(()=>{});
+    });
+  }
+})();
+</script>
+</body>
+</html>
