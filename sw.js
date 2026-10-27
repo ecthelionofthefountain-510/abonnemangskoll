@@ -1,6 +1,6 @@
 /* Abonnemangskoll — service worker for offline use.
    Bump CACHE when you change any precached file. */
-const CACHE = "abonnemangskoll-v1";
+const CACHE = "abonnemangskoll-v2";
 const ASSETS = [
   "./",
   "./index.html",

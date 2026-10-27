@@ -337,15 +337,51 @@
     return "s"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   }
 
-  // ---- persistence (local to this device)
+  // ---- persistence: localStorage (fast) mirrored to IndexedDB (durable).
+  // Android/Chrome can evict localStorage for freshly-installed sites, so we
+  // keep a second copy in IndexedDB and restore from whichever survived.
   let subs=[];
-  function load(){
-    try{const raw=localStorage.getItem(STORE_KEY);subs=raw?JSON.parse(raw):[];if(!Array.isArray(subs))subs=[];}
-    catch(e){subs=[];}
+  const IDB_NAME="abonnemangskoll", IDB_STORE="kv", IDB_KEY="subs";
+
+  function idbOpen(){
+    return new Promise((res,rej)=>{
+      let req;
+      try{req=indexedDB.open(IDB_NAME,1);}catch(e){return rej(e);}
+      req.onupgradeneeded=()=>{try{req.result.createObjectStore(IDB_STORE);}catch(e){}};
+      req.onsuccess=()=>res(req.result);
+      req.onerror=()=>rej(req.error);
+    });
+  }
+  function idbGet(){
+    return idbOpen().then(db=>new Promise((res,rej)=>{
+      const r=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(IDB_KEY);
+      r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+    })).catch(()=>undefined);
+  }
+  function idbSet(val){
+    return idbOpen().then(db=>new Promise((res,rej)=>{
+      const tx=db.transaction(IDB_STORE,"readwrite");
+      tx.objectStore(IDB_STORE).put(val,IDB_KEY);
+      tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+    })).catch(()=>{});
+  }
+  function lsGet(){
+    try{const raw=localStorage.getItem(STORE_KEY);const v=raw?JSON.parse(raw):[];return Array.isArray(v)?v:[];}
+    catch(e){return [];}
+  }
+  function lsSet(val){
+    try{localStorage.setItem(STORE_KEY,JSON.stringify(val));return true;}catch(e){return false;}
   }
   function save(){
-    try{localStorage.setItem(STORE_KEY,JSON.stringify(subs));}
-    catch(e){/* storage full or blocked — app still works for this session */}
+    lsSet(subs);
+    idbSet(subs.slice());           // durable mirror, best effort
+  }
+  function loadSync(){ subs=lsGet(); }   // instant first paint from localStorage
+  function reconcile(){                    // restore from IndexedDB if localStorage was wiped
+    return idbGet().then(idb=>{
+      if(Array.isArray(idb)&&idb.length&&subs.length===0){ subs=idb; lsSet(subs); render(); }
+      else if(subs.length){ idbSet(subs.slice()); }
+    });
   }
 
   let editing=null, delArmed=false;
@@ -585,8 +621,14 @@
   window.addEventListener("appinstalled",()=>{$("installBtn").hidden=true;});
 
   // ---- boot
-  load();
+  loadSync();
   render();
+  reconcile();
+  // ask the browser to keep this data (avoids eviction of a freshly-installed app)
+  if(navigator.storage&&navigator.storage.persist){
+    try{navigator.storage.persisted().then(p=>{if(!p)navigator.storage.persist().catch(()=>{});}).catch(()=>{});}
+    catch(e){}
+  }
 
   // ---- service worker (offline)
   if("serviceWorker" in navigator){
